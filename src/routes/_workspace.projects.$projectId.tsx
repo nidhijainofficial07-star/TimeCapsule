@@ -1,11 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import {
-  Archive, Bug, Camera, CheckCheck, Download, ExternalLink, FlaskConical, Lightbulb, MoreHorizontal, Pencil,
-  PlayCircle, Plus, RefreshCw, Boxes, Github,
+  Archive, Bug, Camera, CheckCheck, Download, ExternalLink,
+  FlaskConical, Lightbulb, MoreHorizontal, Pencil,
+  PlayCircle, Plus, RefreshCw, Boxes, Github, Trash2,
 } from "lucide-react";
 import type { Project, RecordKind } from "@/lib/types";
-import { useDB } from "@/services/db";
+import { useDB, deleteProject } from "@/services/db";
 import { projectSummary } from "@/services/selectors";
 import { projectStatusLabel } from "@/lib/constants";
 import { buildExport, download, exportFilename, projectMarkdown, toCSV } from "@/services/transfer";
@@ -75,6 +76,22 @@ function Workspace() {
     navigate({ search: { tab: t }, replace: true });
   };
   const setRecord = (id?: string) => navigate({ search: (prev) => ({ ...prev, record: id }), replace: true });
+  const handleDeleteProject = () => {
+  const confirmed = window.confirm(
+    `Permanently delete "${p.name}" and all its associated records?\n\nThis action cannot be undone.`
+  );
+
+  if (!confirmed) return;
+
+  const deleted = deleteProject(projectId);
+
+  if (deleted) {
+    toast.success("Project permanently deleted");
+    navigate({ to: "/projects" });
+  } else {
+    toast.error("Could not find this project");
+  }
+};
 
   return (
     <div className="space-y-5">
@@ -105,30 +122,74 @@ function Workspace() {
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 lg:justify-end">
-            <Button asChild><Link to="/resume/$projectId" params={{ projectId }}><PlayCircle /> Resume</Link></Button>
-            <Button variant="outline" onClick={() => setDialog("sessions")}><Plus /> Session</Button>
-            <Button variant="outline" onClick={() => setDialog("snapshot")}><Camera /> Snapshot</Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button variant="outline" aria-label="More project actions"><MoreHorizontal /></Button></DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem onSelect={() => navigate({ to: "/projects/$projectId/edit", params: { projectId } })}><Pencil /> Edit project</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setDialog("ideas")}><Lightbulb /> Add idea</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setDialog("bugs")}><Bug /> Add bug</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setDialog("resources")}><Boxes /> Add resource</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setDialog("review")}><CheckCheck /> Mark as reviewed</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setDialog("test")}><FlaskConical /> Record a test</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setDialog("status")}><RefreshCw /> Change status</DropdownMenuItem>
-                {p.status !== "archived" ? (
-                  <DropdownMenuItem onSelect={() => setDialog("archive")}><Archive /> Archive project</DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onSelect={() => setDialog("status")}><Archive /> Restore project</DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
+          
+<div className="flex flex-wrap gap-2 lg:justify-end">
+  <Button asChild>
+    <Link to="/resume/$projectId" params={{ projectId }}>
+      <PlayCircle /> Resume
+    </Link>
+  </Button>
+
+  <Button variant="outline" onClick={() => setDialog("sessions")}>
+    <Plus /> Session
+  </Button>
+
+  <Button variant="outline" onClick={() => setDialog("snapshot")}>
+    <Camera /> Snapshot
+  </Button>
+
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button variant="outline" aria-label="More project actions">
+        <MoreHorizontal />
+      </Button>
+    </DropdownMenuTrigger>
+
+    <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuItem onSelect={() => navigate({ to: "/projects/$projectId/edit", params: { projectId } })}>
+        <Pencil /> Edit project
+      </DropdownMenuItem>
+
+      <DropdownMenuItem onSelect={() => setDialog("ideas")}>
+        <Lightbulb /> Add idea
+      </DropdownMenuItem>
+
+      <DropdownMenuItem onSelect={() => setDialog("bugs")}>
+        <Bug /> Add bug
+      </DropdownMenuItem>
+
+      <DropdownMenuItem onSelect={() => setDialog("resources")}>
+        <Boxes /> Add resource
+      </DropdownMenuItem>
+
+      <DropdownMenuSeparator />
+
+      <DropdownMenuItem onSelect={() => setDialog("review")}>
+        <CheckCheck /> Mark as reviewed
+      </DropdownMenuItem>
+
+      <DropdownMenuItem onSelect={() => setDialog("test")}>
+        <FlaskConical /> Record a test
+      </DropdownMenuItem>
+
+      <DropdownMenuItem onSelect={() => setDialog("status")}>
+        <RefreshCw /> Change status
+      </DropdownMenuItem>
+
+      <DropdownMenuSeparator />
+
+      <DropdownMenuItem
+        onSelect={handleDeleteProject}
+        className="text-destructive focus:text-destructive"
+      >
+        <Trash2 className="size-4" />
+        Delete project
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
+</div>
+</div>
+
       </header>
 
       <nav aria-label="Project sections" className="-mx-1 overflow-x-auto">
@@ -183,6 +244,8 @@ function Workspace() {
     </div>
   );
 }
+
+
 
 function Overview({ p, go }: { p: Project; go: (t: Tab) => void }) {
   const db = useDB();
@@ -303,7 +366,9 @@ function ProjectSettings({ p, open }: { p: Project; open: (d: "status" | "archiv
             </li>
           ))}
         </ol>
-        <p className="mt-3 text-xs text-muted-foreground">Permanent deletion isn't offered here on purpose — archiving keeps every record.</p>
+<p className="mt-3 text-xs text-muted-foreground">
+  Use the project menu to permanently delete this project and its associated records.
+</p>
       </Section>
       <Section title="Review & testing">
         <div className="flex flex-wrap gap-2">

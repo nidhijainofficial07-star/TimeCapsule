@@ -98,6 +98,36 @@ export function mutate(fn: (draft: DB) => void): DB {
   return next;
 }
 
+
+/** Permanently delete a project and all records belonging to it. */
+export function deleteProject(projectId: string): boolean {
+  if (!getDB().projects.some((p) => p.id === projectId)) {
+    return false;
+  }
+
+  mutate((draft) => {
+    draft.projects = draft.projects.filter((p) => p.id !== projectId);
+
+    draft.features = draft.features.filter((r) => r.projectId !== projectId);
+    draft.bugs = draft.bugs.filter((r) => r.projectId !== projectId);
+    draft.improvements = draft.improvements.filter((r) => r.projectId !== projectId);
+    draft.ideas = draft.ideas.filter((r) => r.projectId !== projectId);
+    draft.resources = draft.resources.filter((r) => r.projectId !== projectId);
+    draft.versions = draft.versions.filter((r) => r.projectId !== projectId);
+    draft.sessions = draft.sessions.filter((r) => r.projectId !== projectId);
+    draft.notes = draft.notes.filter((r) => r.projectId !== projectId);
+    draft.snapshots = draft.snapshots.filter((r) => r.projectId !== projectId);
+
+    // Remove only activity belonging to this project.
+    draft.activity = draft.activity.filter(
+      (r) => r.projectId !== projectId
+    );
+  });
+
+  return true;
+}
+
+
 export function replaceDB(
   next: DB,
   options?: { persist?: boolean },
