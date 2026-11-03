@@ -3,8 +3,7 @@ import type { DB } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 
 export const cloudArchive = {
-  // Load the logged-in user's archive from Supabase.
-  async load(): Promise<DB | null> {
+  async load(expectedUserId?: string): Promise<DB | null> {
     const { data: userData, error: userError } =
       await supabase.auth.getUser();
 
@@ -14,6 +13,10 @@ export const cloudArchive = {
 
     if (!user) {
       throw new Error("You must be logged in to load your archive.");
+    }
+
+    if (expectedUserId && user.id !== expectedUserId) {
+      throw new Error("Account changed. Archive was not downloaded.");
     }
 
     const { data, error } = await supabase
@@ -27,7 +30,6 @@ export const cloudArchive = {
     return data ? (data.data as DB) : null;
   },
 
-  // Save or update the logged-in user's complete archive.
   async save(archive: DB, expectedUserId?: string): Promise<void> {
     const { data: userData, error: userError } =
       await supabase.auth.getUser();
@@ -35,12 +37,13 @@ export const cloudArchive = {
     if (userError) throw userError;
 
     const user = userData.user;
-    if (expectedUserId && user?.id !== expectedUserId) {
-  throw new Error("Account changed. Archive was not uploaded.");
-}
 
     if (!user) {
       throw new Error("You must be logged in to save your archive.");
+    }
+
+    if (expectedUserId && user.id !== expectedUserId) {
+      throw new Error("Account changed. Archive was not uploaded.");
     }
 
     const { error } = await supabase

@@ -4,6 +4,7 @@ import {
   Archive, Boxes, Camera, ChevronsLeft, ChevronsRight, FolderKanban, HelpCircle, LayoutDashboard, Lightbulb,
   LogOut, Menu, Monitor, Moon, Plus, Search, Settings, Sun, History, Bell,
 } from "lucide-react";
+import { resetArchiveSync } from "@/services/archiveSync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -245,7 +246,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <DropdownMenuItem onSelect={() => navigate({ to: "/settings" })}><Settings /> Settings</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setHelpOpen(true)}><HelpCircle /> Keyboard shortcuts</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => { auth.signOut(); navigate({ to: "/login" }); }}><LogOut /> Sign out</DropdownMenuItem>
+<DropdownMenuItem
+  onSelect={async () => {
+    try {
+      await auth.signOut();
+      resetArchiveSync();
+      navigate({ to: "/login", replace: true });
+    } catch (error) {
+      console.error("Sign out failed:", error);
+    }
+  }}
+>
+  <LogOut /> Sign out
+</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

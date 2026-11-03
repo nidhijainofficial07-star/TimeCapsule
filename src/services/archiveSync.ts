@@ -20,41 +20,66 @@ export async function initializeArchiveForCurrentUser(): Promise<void> {
 
   if (initializedUserId === user.id) return;
 
+  // Serialize initialization so two accounts cannot initialize concurrently.
   if (initializationPromise) {
-    await initializationPromise;
+    try {
+      await initializationPromise;
+    } catch {
+      // A previous initialization may have failed or become stale.
+    }
 
-    if (initializedUserId === user.id) return;
+    return initializeArchiveForCurrentUser();
   }
 
-  initializationPromise = (async () => {
+  const task = (async () => {
     archiveStorage.setUser(user.id);
 
-    // Always load the cloud archive first.
-    const cloudData = await cloudArchive.load();
+    // Load only the archive belonging to this authenticated user.
+    const cloudData = await cloudArchive.load(user.id);
 
-    // Never use another account's local archive as a fallback.
+    // Verify that the account has not changed during the request.
+    const { data: latest, error: latestError } =
+      await supabase.auth.getUser();
+
+    if (latestError) throw latestError;
+
+    if (latest.user?.id !== user.id) {
+      throw new Error("Account changed during archive initialization.");
+    }
+
     const archive = cloudData
       ? normalizeDB(cloudData)
       : emptyDB();
 
-    // Update memory without triggering another persistence operation.
     replaceDB(archive, { persist: false });
 
-    // Store a separate local cache for this account.
     archiveStorage.write(archive);
 
-    // Create the first cloud archive for a new account.
     if (!cloudData) {
-      await cloudArchive.save(archive);
+      await cloudArchive.save(archive, user.id);
+    }
+
+    // Verify again before marking initialization complete.
+    const { data: finalAuth, error: finalError } =
+      await supabase.auth.getUser();
+
+    if (finalError) throw finalError;
+
+    if (finalAuth.user?.id !== user.id) {
+      throw new Error("Account changed during archive initialization.");
     }
 
     initializedUserId = user.id;
   })();
 
+  initializationPromise = task;
+
   try {
-    await initializationPromise;
+    await task;
   } finally {
-    initializationPromise = null;
+    if (initializationPromise === task) {
+      initializationPromise = null;
+    }
   }
 }
 
