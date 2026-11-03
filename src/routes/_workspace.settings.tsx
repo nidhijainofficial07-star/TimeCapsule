@@ -5,9 +5,8 @@ import { toast } from "sonner";
 import { useDB, getDB, replaceDB, normalizeDB } from "@/services/db";
 import { updatePreferences, resetDashboardLayout } from "@/services/preferences";
 import { auth, useSession } from "@/services/auth";
-import { applyImport, buildExport, download, exportFilename, previewImport, toCSV, type ImportPreview } from "@/services/transfer";
-import { buildSampleData, stripSample } from "@/data/sample";
-import { discardAllDrafts, listDrafts } from "@/hooks/use-draft";
+import type { ImportPreview } from "@/services/transfer";
+import { stripSample } from "@/data/sample";import { discardAllDrafts, listDrafts } from "@/hooks/use-draft";
 import { SORT_OPTIONS } from "@/services/selectors";
 import { PageHeader, Section, useConfirm, attempt } from "@/components/tc/common";
 import { ShortcutList } from "@/components/tc/AppShell";
@@ -57,23 +56,52 @@ function SettingsPage() {
   const drafts = listDrafts();
   const save = (p: Parameters<typeof updatePreferences>[0]) => attempt(() => updatePreferences(p), "Preference saved");
 
-  const exportAll = () => {
-    download(exportFilename("Complete-Archive", "json"), JSON.stringify(buildExport("all"), null, 2), "application/json");
-    toast.success("Full archive exported");
-  };
-  const exportPart = (c: "ideas" | "notes" | "versions" | "snapshots" | "resources" | "sessions" | "activity") => {
-    download(exportFilename(c, "json"), JSON.stringify(buildExport({ collections: [c] }), null, 2), "application/json");
-    toast.success(`${c} exported`);
-  };
-  const exportIdeasCsv = () => {
-    const rows = db.ideas.map((i) => ({ ...i, project: db.projects.find((p) => p.id === i.projectId)?.name ?? "" }));
-    download(exportFilename("Ideas", "csv"), toCSV(rows, ["title", "project", "category", "status", "priority", "futureVersion", "createdAt"]), "text/csv");
-  };
+  const exportAll = async () => {
+  const { buildExport, download, exportFilename } = await import("@/services/transfer");
+
+  download(
+    exportFilename("Complete-Archive", "json"),
+    JSON.stringify(buildExport("all"), null, 2),
+    "application/json"
+  );
+
+  toast.success("Full archive exported");
+};
+
+const exportPart = async (
+  c: "ideas" | "notes" | "versions" | "snapshots" | "resources" | "sessions" | "activity"
+) => {
+  const { buildExport, download, exportFilename } = await import("@/services/transfer");
+
+  download(
+    exportFilename(c, "json"),
+    JSON.stringify(buildExport({ collections: [c] }), null, 2),
+    "application/json"
+  );
+
+  toast.success(`${c} exported`);
+};
+
+const exportIdeasCsv = async () => {
+  const { download, exportFilename, toCSV } = await import("@/services/transfer");
+
+  const rows = db.ideas.map((i) => ({
+    ...i,
+    project: db.projects.find((p) => p.id === i.projectId)?.name ?? "",
+  }));
+
+  download(
+    exportFilename("Ideas", "csv"),
+    toCSV(rows, ["title", "project", "category", "status", "priority", "futureVersion", "createdAt"]),
+    "text/csv"
+  );
+};
 
   const onFile = async (f: File) => {
     if (f.size > 10 * 1024 * 1024) { toast.error("That file is larger than 10 MB."); return; }
     const text = await f.text();
-    setPreview(previewImport(text));
+const { previewImport } = await import("@/services/transfer");
+setPreview(previewImport(text));
   };
 
   return (
@@ -145,7 +173,7 @@ function SettingsPage() {
           <Row label="Display name" htmlFor="s-name">
             <div className="flex gap-2">
               <Input id="s-name" value={name} onChange={(e) => setName(e.target.value)} />
-              <Button variant="outline" disabled={!name.trim()} onClick={() => { auth.updateName(name.trim()); toast.success("Name updated"); }}>Save</Button>
+              <Button variant="outline" disabled={!name.trim()} onClick={async () => { auth.updateName(name.trim()); toast.success("Name updated"); }}>Save</Button>
             </div>
           </Row>
           <Row label="Signed in as"><span className="text-sm">{session?.email}</span></Row>
@@ -189,9 +217,10 @@ function SettingsPage() {
         <Section title="Sample & stored data">
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => ask({ title: "Clear sample data?", body: "Removes every record labelled “Sample”. Your own records are untouched.", confirm: "Clear sample data", force: true }, () => attempt(() => replaceDB(stripSample(getDB())), "Sample data cleared"))}>Clear sample data</Button>
-            <Button variant="outline" onClick={() => ask({ title: "Restore sample data?", body: "Adds the sample projects back alongside your own records.", confirm: "Add samples", force: true }, () => attempt(() => {
+            <Button variant="outline" onClick={() => ask({ title: "Restore sample data?", body: "Adds the sample projects back alongside your own records.", confirm: "Add samples", force: true }, async () => attempt(async () => {
               const cur = stripSample(getDB());
-              const s = buildSampleData();
+              const { buildSampleData } = await import("@/data/sample");
+const s = buildSampleData();
               replaceDB(normalizeDB({ ...cur, ...Object.fromEntries((["projects", "features", "bugs", "improvements", "ideas", "resources", "versions", "sessions", "notes", "activity"] as const).map((k) => [k, [...(s[k] as unknown[]), ...(cur[k] as unknown[])]])) }));
             }, "Sample data added"))}>Restore sample data</Button>
             <Button variant="ghost" className="text-destructive" onClick={() => ask({ title: "Erase everything in this browser?", body: "This permanently deletes ALL projects and records stored in this browser, including your own. Export first if you want a copy. This cannot be undone.", confirm: "Erase everything", destructive: true, force: true }, () => attempt(() => replaceDB({ ...emptyDB(), preferences: getDB().preferences }), "Archive erased"))}><Trash2 /> Erase all data</Button>
@@ -224,9 +253,10 @@ function SettingsPage() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setPreview(null)}>Cancel</Button>
             {preview?.ok && (
-              <Button onClick={() => {
+              <Button onClick={async () => {
                 try {
-                  const r = applyImport(preview.file!, mode);
+                  const { applyImport } = await import("@/services/transfer");
+const r = applyImport(preview.file!, mode);
                   toast.success(`Imported ${r.added} records`, { description: r.skipped ? `${r.skipped} existing records were skipped.` : undefined });
                   setPreview(null);
                 } catch (e) {

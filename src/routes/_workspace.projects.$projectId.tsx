@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import {
   Archive, Bug, Camera, CheckCheck, Download, ExternalLink,
   FlaskConical, Lightbulb, MoreHorizontal, Pencil,
@@ -10,14 +10,55 @@ import { useDB, deleteProject } from "@/services/db";
 import { projectSummary } from "@/services/selectors";
 import { projectStatusLabel } from "@/lib/constants";
 import { buildExport, download, exportFilename, projectMarkdown, toCSV } from "@/services/transfer";
-import { RecordManager } from "@/features/records/RecordManager";
-import { RecordFormDialog } from "@/features/records/RecordForm";
-import { DescriptionTab } from "@/features/projects/DescriptionTab";
-import { VersionCompare } from "@/features/projects/VersionCompare";
+const RecordManager = lazy(() =>
+  import("@/features/records/RecordManager").then((m) => ({
+    default: m.RecordManager,
+  }))
+);
+
+const RecordFormDialog = lazy(() =>
+  import("@/features/records/RecordForm").then((m) => ({
+    default: m.RecordFormDialog,
+  }))
+);
+
+const DescriptionTab = lazy(() =>
+  import("@/features/projects/DescriptionTab").then((m) => ({
+    default: m.DescriptionTab,
+  }))
+);
+
+const VersionCompare = lazy(() =>
+  import("@/features/projects/VersionCompare").then((m) => ({
+    default: m.VersionCompare,
+  }))
+);
+
+const TimelineList = lazy(() =>
+  import("@/features/timeline/TimelineList").then((m) => ({
+    default: m.TimelineList,
+  }))
+);
+
+const CreateSnapshotDialog = lazy(() =>
+  import("@/features/snapshots/snapshots").then((m) => ({
+    default: m.CreateSnapshotDialog,
+  }))
+);
+
+const SnapshotCompare = lazy(() =>
+  import("@/features/snapshots/snapshots").then((m) => ({
+    default: m.SnapshotCompare,
+  }))
+);
+
+const SnapshotList = lazy(() =>
+  import("@/features/snapshots/snapshots").then((m) => ({
+    default: m.SnapshotList,
+  }))
+);
 import { ProjectIcon, ProjectStatusPill } from "@/features/projects/ProjectCard";
 import { ReviewDialog, StatusDialog, TestDialog } from "@/features/projects/lifecycle";
-import { TimelineList } from "@/features/timeline/TimelineList";
-import { CreateSnapshotDialog, SnapshotCompare, SnapshotList } from "@/features/snapshots/snapshots";
 import { EmptyState, Markdown, NotRecorded, SampleBadge, Section, StatusPill } from "@/components/tc/common";
 import { Button } from "@/components/ui/button";
 import {
@@ -208,7 +249,8 @@ function Workspace() {
         </div>
       </nav>
 
-      <div role="tabpanel">
+      <Suspense fallback={<div className="py-8 text-center text-sm text-muted-foreground">Loading section...</div>}>
+  <div role="tabpanel">
         {tab === "overview" && <Overview p={p} go={setTab} />}
         {tab === "description" && <DescriptionTab p={p} />}
         {(["features", "bugs", "improvements", "ideas", "resources", "sessions"] as const).includes(tab as never) && (
@@ -233,6 +275,7 @@ function Workspace() {
         )}
         {tab === "settings" && <ProjectSettings p={p} open={(d) => setDialog(d)} />}
       </div>
+      </Suspense>
 
       <StatusDialog p={p} open={dialog === "status" || dialog === "archive"} initial={dialog === "archive" ? "archived" : undefined} onOpenChange={(o) => !o && setDialog(null)} />
       <ReviewDialog p={p} open={dialog === "review"} onOpenChange={(o) => !o && setDialog(null)} />

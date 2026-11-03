@@ -30,9 +30,19 @@ export function normalizeDB(input: unknown): DB {
   }
   const prefs = (src.preferences ?? {}) as Record<string, unknown>;
   base.preferences = { ...base.preferences, ...prefs } as DB["preferences"];
-  const ids = new Set(base.preferences.widgets?.map((w) => w.id));
-  if (!Array.isArray(base.preferences.widgets)) base.preferences.widgets = structuredClone(DEFAULT_PREFERENCES.widgets);
-  for (const w of DEFAULT_PREFERENCES.widgets) if (!ids.has(w.id)) base.preferences.widgets.push({ ...w });
+  const widgets = Array.isArray(base.preferences.widgets)
+  ? base.preferences.widgets
+  : structuredClone(DEFAULT_PREFERENCES.widgets);
+
+const ids = new Set(widgets.map((w) => w.id));
+
+for (const w of DEFAULT_PREFERENCES.widgets) {
+  if (!ids.has(w.id)) {
+    widgets.push({ ...w });
+  }
+}
+
+base.preferences.widgets = widgets;
   return base;
 }
 
